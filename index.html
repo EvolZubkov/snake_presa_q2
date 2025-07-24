@@ -624,7 +624,7 @@
 
                         // вставляем ваше изображение
                         const img = document.createElement('img');
-                        img.src = '.head.svg'; // относительный путь к файлу
+                        img.src = 'head.svg'; // относительный путь к файлу
                         img.alt = 'snake head';
                         segment.appendChild(img);
                     }
@@ -682,7 +682,7 @@
                     const food = document.createElement('div');
                     food.className = 'snake-food';
                     const img = document.createElement('img');
-                    img.src = '.apple.svg';       // путь к вашему SVG
+                    img.src = 'apple.svg';       // путь к вашему SVG
                     img.alt = '🍎';
                     food.appendChild(img)
                     food.dataset.slideIndex = i;
