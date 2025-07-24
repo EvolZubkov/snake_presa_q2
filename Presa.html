@@ -1,0 +1,1200 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Презентация Змейка</title>
+    <style>
+        :root {
+            --snake-size: 300px;
+            /* размер одного сегмента */
+            --snake-transition: 0.2s;
+            /* время перехода */
+        }
+
+        html {
+            /* Плавный «мягкий» скролл при programmatic scroll (scrollIntoView) */
+            scroll-behavior: smooth;
+
+        }
+
+        .snake-segment {
+            width: var(--snake-size);
+            height: var(--snake-size);
+            transition: all var(--snake-transition) ease-out;
+        }
+
+        .snake-head {
+            width: var(--snake-size);
+            height: var(--snake-size);
+            /* остальные стили головы остаются */
+        }
+
+        .snake-segment {
+            position: absolute;
+            /* осталось */
+            will-change: transform;
+            /* браузер знает, что будем менять transform */
+            transition: none;
+            /* JS‑анимация сама сглаживает */
+        }
+
+        /* 1) Опустим змейку позади всего */
+        .scroll-snake {
+            position: fixed;
+            z-index: 0;
+            /* было 999 — теперь «фон» */
+            pointer-events: none;
+        }
+
+        /* 2) Добавим полупрозрачную «стеклянную» подложку у слайда */
+        .slide {
+            position: relative;
+            /* для ::before */
+            z-index: 2;
+            /* чтобы текст/интерактив внутри был поверх */
+        }
+
+        .slide::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: lch(0% 0 0 / 0.302);
+            /* затемнение */
+            backdrop-filter: blur(1px);
+            /* блюр фона (snake будет под ним) */
+            pointer-events: none;
+            z-index: 1;
+            /* под контентом слайда */
+        }
+
+        /* Дальше все внутренние элементы слайда на z‑уровне 2 */
+        .slide>* {
+            position: relative;
+            z-index: 2;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #0a0a0a, #1a1a2e);
+            color: #00ff00;
+            overflow-x: hidden;
+        }
+
+        .slide {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            position: relative;
+            border: 2px solid #00ff00;
+            margin-bottom: 2px;
+            background: radial-gradient(circle at center, rgba(0, 255, 0, 0.1), transparent);
+        }
+
+        .slide h1 {
+            font-size: 10rem;
+            text-align: center;
+            margin-bottom: 2rem;
+            text-shadow: 0 0 20px #00ff00;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        .slide h2 {
+            font-size: 3rem;
+            text-align: center;
+            margin-bottom: 1.5rem;
+            color: #00ff88;
+        }
+
+        .slide p {
+            font-size: 1.2rem;
+            text-align: center;
+            max-width: 800px;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+
+        @keyframes glow {
+            from {
+                text-shadow: 0 0 20px #00ff00;
+            }
+
+            to {
+                text-shadow: 0 0 30px #00ff00, 0 0 40px #00ff00;
+            }
+        }
+
+        .interactive-element {
+            margin: 2rem 0;
+            padding: 1rem;
+            border: 1px solid #00ff00;
+            border-radius: 10px;
+            background: rgba(0, 255, 0, 0.05);
+            transition: all 0.3s;
+        }
+
+        .interactive-element:hover {
+            background: rgba(0, 255, 0, 0.1);
+            transform: scale(1.02);
+        }
+
+        .slide-number {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 1.5rem;
+            color: #00ff88;
+        }
+
+        .slide:nth-child(even) {
+            background: radial-gradient(circle at center, rgba(0, 255, 136, 0.1), transparent);
+        }
+
+        /* Игровой слайд */
+        .game-slide {
+            background: radial-gradient(circle at center, rgba(0, 255, 0, 0.15), transparent);
+        }
+
+        .game-container {
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #00ff00;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .game-controls {
+            margin-bottom: 20px;
+        }
+
+        .game-controls button {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            margin: 0 10px;
+            cursor: pointer;
+            font-family: inherit;
+            border-radius: 5px;
+            transition: all 0.3s;
+            font-size: 16px;
+        }
+
+        .game-controls button:hover {
+            background: #00ff88;
+            transform: scale(1.05);
+        }
+
+        #gameCanvas {
+            border: 2px solid #00ff00;
+            background: #000;
+            margin: 20px 0;
+        }
+
+        .score {
+            color: #00ff00;
+            font-size: 18px;
+            margin-top: 10px;
+        }
+
+        /* Анимированная змейка для скролла */
+        .scroll-snake {
+            position: fixed;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .snake-segment {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            background: #00ff00;
+            border-radius: 3px;
+            box-shadow: 0 0 10px #00ff00;
+            transition: all 0.1s ease;
+        }
+
+        .snake-head {
+            position: absolute;
+            background: none;
+            /* убираем фон из .snake-segment */
+            box-shadow: none;
+            /* убираем тень из .snake-segment */
+            width: 160px;
+            height: 160px;
+            border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+        }
+
+        .snake-head img {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Еда для змейки на слайдах */
+        .snake-food {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            /* background: #ff3030; */
+            border-radius: 50%;
+            /* box-shadow: 0 0 15px #ff3030; */
+            z-index: 1;
+            animation: pulse 1.5s ease-in-out infinite;
+            transition: all 0.3s;
+        }
+
+        /* Только яблочки на slide-6 */
+        .snake-food[data-slide-index="6"] {
+            z-index: 3 !important;
+        }
+
+
+        .snake-food img {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .snake-food.eaten {
+            transform: scale(0);
+            opacity: 0;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            50% {
+                transform: scale(1.2);
+                opacity: 0.8;
+            }
+        }
+
+        .navigation {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        .nav-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: rgba(0, 255, 0, 0.3);
+            border: 1px solid #00ff00;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .nav-dot.active {
+            background: #00ff00;
+            box-shadow: 0 0 10px #00ff00;
+        }
+
+        /* Счетчик длины змейки */
+        .snake-length-counter {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #00ff00;
+            border-radius: 10px;
+            padding: 10px 15px;
+            color: #00ff00;
+            font-size: 16px;
+            z-index: 1000;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .slide h1 {
+                font-size: 2rem;
+            }
+
+            .slide h2 {
+                font-size: 1.5rem;
+            }
+
+            .slide p {
+                font-size: 1rem;
+            }
+
+            #gameCanvas {
+                width: 280px;
+                height: 220px;
+            }
+
+            .snake-segment {
+                width: 15px;
+                height: 15px;
+            }
+
+            .snake-length-counter {
+                top: 10px;
+                right: 10px;
+                font-size: 14px;
+                padding: 8px 12px;
+            }
+        }
+
+        .corner-block {
+            background: #00ff00;
+            box-shadow: 0 0 10px #00ff00;
+        }
+
+        slide-1 {
+            overflow: hidden;
+            /* чтобы картинка не вылезала за границы */
+        }
+
+        /* растягиваем картинку на весь слайд */
+        .slide-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            /* cover — заполняет весь блок, можно object-fit: contain, чтобы видно было всё изображение */
+            z-index: 10;
+        }
+
+        /* вариант через ::before */
+        /* .snake-point::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 10px;
+            height: 10px;
+            background: red;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 100;
+        } */
+
+        /* поднимаем весь остальной контент слайда над картинкой
+        #slide-1>*:not(.slide-image) {
+            position: relative;
+            z-index: 1;
+        } */
+    </style>
+</head>
+
+<body>
+    <!-- Анимированная змейка для скролла -->
+    <div class="scroll-snake" id="scrollSnake"></div>
+
+    <!-- Счетчик длины змейки -->
+    <div class="snake-length-counter">
+        🐍 Длина: <span id="snakeLength">4</span>
+    </div>
+
+    <div class="navigation">
+        <div class="nav-dot active" onclick="scrollToSlide(0)"></div>
+        <div class="nav-dot" onclick="scrollToSlide(1)"></div>
+        <div class="nav-dot" onclick="scrollToSlide(2)"></div>
+        <div class="nav-dot" onclick="scrollToSlide(3)"></div>
+        <div class="nav-dot" onclick="scrollToSlide(4)"></div>
+        <div class="nav-dot" onclick="scrollToSlide(5)"></div>
+        <div class="nav-dot" onclick="scrollToSlide(6)"></div>
+        <div class="nav-dot" onclick="scrollToSlide(7)"></div>
+        <div class="nav-dot" onclick="scrollToSlide(8)"></div>
+        <div class="nav-dot" onclick="scrollToSlide(9)"></div>
+        <div class="nav-dot" onclick="scrollToSlide(10)"></div>
+        <div class="nav-dot" onclick="scrollToSlide(11)"></div>
+        <div class="nav-dot" onclick="scrollToSlide(12)"></div>
+        <div class="nav-dot" onclick="scrollToSlide(13)"></div>
+        <div class="nav-dot" onclick="scrollToSlide(14)"></div>
+    </div>
+
+    <div class="slide" id="slide-0">
+        <div class="snake-point" data-order="1" style="position:absolute; left:50%; top:-5%;  width:1px; height:1px;">
+        </div>
+        <div class="snake-point" data-order="2" style="position:absolute; left:15%; top:75%; width:1px; height:1px;">
+        </div>
+        <img src="/image 219.png" alt="Общие цифры разработки" class="slide-image" />
+        <div class="slide-number">01/15</div>
+
+    </div>
+
+    <div class="slide" id="slide-1">
+        <div class="snake-point" data-order="3" style="position:absolute; left:90%; top:10%; width:1px; height:1px;">
+        </div>
+        <div class="snake-point" data-order="4.1" style="position:absolute; left:10%; top:90%; width:1px; height:1px;">
+        </div>
+        <img src="/image 220 (1).png" alt="Общие цифры разработки" class="slide-image" />
+        <div class="slide-number">02/15</div>
+
+    </div>
+
+    <div class="slide" id="slide-2">
+        <div class="snake-point" data-order="5" style="position:absolute; left:30%; top:80%; width:1px; height:1px;">
+        </div>
+        <div class="snake-point" data-order="6" style="position:absolute; left:50%; top:40%; width:1px; height:1px;">
+        </div>
+        <img src="/image 221.png" alt="Общие цифры разработки" class="slide-image" />
+        <div class="slide-number">03/15</div>
+
+    </div>
+
+    <div class="slide" id="slide-3">
+        <div class="snake-point" data-order="7" style="position:absolute; left:50%; top:40%; width:1px; height:1px;">
+        </div>
+        <div class="snake-point" data-order="8" style="position:absolute; left:60%; top:60%; width:1px; height:1px;">
+        </div>
+        <img src="/image 222.png" alt="Общие цифры разработки" class="slide-image" />
+        <div class="slide-number">04/15</div>
+    </div>
+
+    <div class="slide" id="slide-4">
+        <div class="snake-point" data-order="9" style="position:absolute; left:80%; top:30%; width:1px; height:1px;">
+        </div>
+        <div class="snake-point" data-order="10" style="position:absolute; left:40%; top:80%; width:1px; height:1px;">
+        </div>
+        <img src="/image 223.png" alt="Общие цифры разработки" class="slide-image" />
+        <div class="slide-number">05/15</div>
+    </div>
+
+    <div class="slide" id="slide-5">
+        <div class="snake-point" data-order="11" style="position:absolute; left:10%; top:90%; width:1px; height:1px;">
+        </div>
+        <div class="snake-point" data-order="12" style="position:absolute; left:75%; top:70%; width:1px; height:1px;">
+        </div>
+        <img src="/image 224.png" alt="Общие цифры разработки" class="slide-image" />
+        <div class="slide-number">06/15</div>
+    </div>
+
+    <div class="slide" id="slide-6">
+        <div class="snake-point" data-order="13" style="position:absolute; left:73%; top:57%; width:1px; height:1px;">
+        </div>
+        <div class="snake-point" data-order="14" style="position:absolute; left:30%; top:80%; width:1px; height:1px;">
+        </div>
+        <img src="/image 225.png" alt="Общие цифры разработки" class="slide-image" />
+        <div class="slide-number">07/15</div>
+    </div>
+
+    <div class="slide" id="slide-7">
+        <div class="snake-point" data-order="15" style="position:absolute; left:30%; top:80%; width:1px; height:1px;">
+        </div>
+        <div class="snake-point" data-order="16" style="position:absolute; left:80%; top:50%; width:1px; height:1px;">
+        </div>
+        <img src="/image 226.png" alt="Общие цифры разработки" class="slide-image" />
+        <div class="slide-number">08/15</div>
+    </div>
+
+    <div class="slide" id="slide-8">
+        <div class="snake-point" data-order="17" style="position:absolute; left:90%; top:60%; width:1px; height:1px;">
+        </div>
+        <div class="snake-point" data-order="18" style="position:absolute; left:50%; top:90%; width:1px; height:1px;">
+        </div>
+        <img src="/image 227.png" alt="Общие цифры разработки" class="slide-image" />
+        <div class="slide-number">09/15</div>
+    </div>
+
+    <div class="slide" id="slide-9">
+        <div class="snake-point" data-order="19" style="position:absolute; left:40%; top:60%; width:1px; height:1px;">
+        </div>
+        <div class="snake-point" data-order="20" style="position:absolute; left:60%; top:80%; width:1px; height:1px;">
+        </div>
+        <img src="/image 228.png" alt="Общие цифры разработки" class="slide-image" />
+        <div class="slide-number">10/15</div>
+    </div>
+
+    <div class="slide" id="slide-10">
+        <div class="snake-point" data-order="21" style="position:absolute; left:30%; top:30%; width:1px; height:1px;">
+        </div>
+        <div class="snake-point" data-order="22" style="position:absolute; left:70%; top:40%; width:1px; height:1px;">
+        </div>
+        <img src="/image 230.png" alt="Общие цифры разработки" class="slide-image" />
+        <div class="slide-number">11/15</div>
+    </div>
+
+    <div class="slide" id="slide-11">
+        <div class="snake-point" data-order="23" style="position:absolute; left:70%; top:40%; width:1px; height:1px;">
+        </div>
+        <div class="snake-point" data-order="24" style="position:absolute; left:50%; top:80%; width:1px; height:1px;">
+        </div>
+        <img src="/image 231.png" alt="Общие цифры разработки" class="slide-image" />
+        <div class="slide-number">12/15</div>
+    </div>
+
+    <div class="slide" id="slide-12">
+        <div class="snake-point" data-order="25" style="position:absolute; left:50%; top:80%; width:1px; height:1px;">
+        </div>
+        <div class="snake-point" data-order="26" style="position:absolute; left:30%; top:60%; width:1px; height:1px;">
+        </div>
+        <img src="/image 232.png" alt="Общие цифры разработки" class="slide-image" />
+        <div class="slide-number">13/15</div>
+    </div>
+
+    <div class="slide" id="slide-13">
+        <div class="snake-point" data-order="27" style="position:absolute; left:30%; top:10%; width:1px; height:1px;">
+        </div>
+        <div class="snake-point" data-order="28" style="position:absolute; left:70%; top:10%; width:1px; height:1px;">
+        </div>
+        <img src="/image 233.png" alt="Общие цифры разработки" class="slide-image" />
+        <div class="slide-number">14/15</div>
+    </div>
+
+    <div class="slide game-slide" id="slide-14">
+        <div class="snake-point" data-order="29" style="position:absolute; left:50%; top:50%; width:1px; height:1px;">
+        </div>
+        <div class="snake-point" data-order="30" style="position:absolute; left:50%; top:50%; width:1px; height:1px;">
+        </div>
+        <div class="slide-number">15/15</div>
+        <h1>🎮 ИГРАЙТЕ В ЗМЕЙКУ!</h1>
+        <p>А теперь попробуйте сами! Управляйте стрелками или клавишами WASD.</p>
+
+        <div class="game-container">
+            <div class="game-controls">
+                <button onclick="startGame()">Старт</button>
+                <button onclick="pauseGame()">Пауза</button>
+                <button onclick="resetGame()">Сброс</button>
+            </div>
+            <canvas id="gameCanvas" width="800" height="640"></canvas>
+            <div class="score">Счёт: <span id="score">0</span> | Лучший: <span id="bestScore">0</span></div>
+        </div>
+
+        <div class="interactive-element">
+            <p>🎯 Цель: наберите как можно больше очков, избегая столкновений!</p>
+        </div>
+    </div>
+
+    <script>
+        // Анимированная змейка для скролла
+        class ScrollSnake {
+            constructor() {
+                this.container = document.getElementById('scrollSnake');
+                this.segments = [];
+                this.segmentCount = 4;
+                // базовый «малый» разрыв между сегментами тела
+                this.bodyGap = 5;
+                // «большой» разрыв между головой и первым сегментом
+                this.headGap = 6;
+                this.pointsPerSlide = 60; // количество точек пути на слайд — чем больше, тем плавнее
+                this.segmentSize = 20;
+                this.path = [];
+                this.currentPathIndex = 0;
+                this.speed = 2;
+                this.foodItems = [];
+                this.eatenFood = new Set();
+                this.snakeLengthElement = document.getElementById('snakeLength');
+
+                this.createSegments();
+                this.generatePath();
+                this.createFoodItems();
+                this.animate();
+                // Флаг, чтобы не срабатывать каждый кадр
+                this.markerTriggered = false;
+                this.tailChanged = false;  // новый флаг для хвоста
+            }
+
+            createSegments() {
+                for (let i = 0; i < this.segmentCount; i++) {
+                    const segment = document.createElement('div');
+                    segment.className = 'snake-segment';
+
+                    if (i === 0) {
+                        // это голова
+                        segment.classList.add('snake-head');
+
+                        // вставляем ваше изображение
+                        const img = document.createElement('img');
+                        img.src = './head.svg'; // относительный путь к файлу
+                        img.alt = 'snake head';
+                        segment.appendChild(img);
+                    }
+
+                    this.container.appendChild(segment);
+                    this.segments.push({
+                        element: segment,
+                        x: -100,
+                        y: window.innerHeight / 2
+                    });
+                }
+            }
+
+            addSegment() {
+                // 1) создаём DOM‑элемент
+                const segment = document.createElement('div');
+                segment.className = 'snake-segment';
+                this.container.appendChild(segment);
+
+                // 2) берём хвост — последний элемент массива
+                const last = this.segments[this.segments.length - 1];
+
+                // 3) сразу позиционируем новый элемент на тех же координатах
+                //    если вы используете transform-позиционирование:
+                segment.style.transform = `translate(${last.x}px, ${last.y}px)`;
+
+                // 4) пушим в массив с такими же координатами
+                this.segments.push({
+                    element: segment,
+                    x: last.x,
+                    y: last.y
+                });
+
+                // 5) обновляем счётчик
+                this.segmentCount++;
+                this.snakeLengthElement.textContent = this.segmentCount;
+            }
+
+
+            createFoodItems() {
+                // убеждаемся, что путь уже сгенерирован
+                if (!this.path.length) this.generatePath();
+
+                const slides = document.querySelectorAll('.slide');
+                for (let i = 1; i < slides.length; i++) {
+                    // Фильтруем все точки, относящиеся к слайду i
+                    const pts = this.path.filter(pt => pt.slideIndex === i);
+                    if (pts.length === 0) continue;
+
+                    // Берём случайный индекс из этого набора
+                    const randIndex = Math.floor(Math.random() * pts.length);
+                    const { x, y } = pts[randIndex];
+
+                    // Создаём элемент еды
+                    const food = document.createElement('div');
+                    food.className = 'snake-food';
+                    const img = document.createElement('img');
+                    img.src = './apple.svg';       // путь к вашему SVG
+                    img.alt = '🍎';
+                    food.appendChild(img)
+                    food.dataset.slideIndex = i;
+
+                    // Ставим ровно на эту точку пути
+                    food.style.left = `${x}px`;
+                    food.style.top = `${y}px`;
+
+                    document.body.appendChild(food);
+                    this.foodItems.push({
+                        element: food,
+                        slideIndex: i,
+                        x, y,
+                        eaten: false
+                    });
+                }
+            }
+
+
+
+            generatePath() {
+                this.path = [];
+
+                // 1) Сортируем маркеры
+                const markers = Array.from(document.querySelectorAll('.snake-point'))
+                    .sort((a, b) => Number(a.dataset.order) - Number(b.dataset.order));
+
+                // 2) Считаем, сколько сегментов может быть отставших:
+                const maxLag = (this.segmentCount - 1) * this.segmentGap;
+                // Добавим сверху ещё небольшой запас (+10) для надёжности
+                const preCount = maxLag + 10;
+                const postCount = preCount;
+
+                // 3) Позиция первого маркера
+                const firstRect = markers[0].getBoundingClientRect();
+                const startX = firstRect.left + firstRect.width / 2;
+                const startY = window.pageYOffset + firstRect.top + firstRect.height / 2;
+
+                // 4) Префиксные точки – поднимаем выше экрана
+                for (let i = preCount; i > 0; i--) {
+                    this.path.push({
+                        x: startX,
+                        y: startY - (i * window.innerHeight) / preCount,
+                        slideIndex: 0
+                    });
+                }
+
+                // 5) Линейная интерполяция между маркерами (как было)
+                const segmentsBetween = 60;
+                for (let i = 0; i < markers.length - 1; i++) {
+                    const A = markers[i], B = markers[i + 1];
+                    const rA = A.getBoundingClientRect(), rB = B.getBoundingClientRect();
+                    const Ax = rA.left + rA.width / 2, Ay = window.pageYOffset + rA.top + rA.height / 2;
+                    const Bx = rB.left + rB.width / 2, By = window.pageYOffset + rB.top + rB.height / 2;
+                    for (let t = 0; t < segmentsBetween; t++) {
+                        const f = t / (segmentsBetween - 1);
+                        this.path.push({
+                            x: Ax + (Bx - Ax) * f,
+                            y: Ay + (By - Ay) * f,
+                            slideIndex: f < 0.5
+                                ? Number(A.closest('.slide').id.replace('slide-', ''))
+                                : Number(B.closest('.slide').id.replace('slide-', ''))
+                        });
+                    }
+                }
+
+                // 6) Постфиксные точки – уводим ниже экрана
+                const last = markers[markers.length - 1];
+                const lRect = last.getBoundingClientRect();
+                const endX = lRect.left + lRect.width / 2;
+                const endY = window.pageYOffset + lRect.top + lRect.height / 2;
+                const lastIdx = Number(last.closest('.slide').id.replace('slide-', ''));
+                for (let i = 1; i <= postCount; i++) {
+                    this.path.push({
+                        x: endX,
+                        y: endY + (i * window.innerHeight) / postCount,
+                        slideIndex: lastIdx
+                    });
+                }
+                // find the DOM‑элемент‑маркер
+                const markerEl = document.querySelector('#slide-6 .snake-point[data-order="13"]');
+                const rect = markerEl.getBoundingClientRect();
+
+                // сложим window.pageYOffset, потому что в path.y — абсолютная Y
+                this.markerCoords = {
+                    x: rect.left + rect.width / 2,
+                    y: window.pageYOffset + rect.top + rect.height / 2
+                };
+
+                // флаг, чтобы срабатывало ОДИН раз
+                this.markerTriggered = false;
+
+            }
+
+
+
+            checkFoodCollision(headX, headY) {
+                this.foodItems.forEach((food, index) => {
+                    if (!food.eaten) {
+                        const distance = Math.sqrt(
+                            Math.pow(headX - food.x, 2) +
+                            Math.pow(headY - food.y, 2)
+                        );
+
+                        if (distance < 25) { // Радиус коллизии
+                            food.eaten = true;
+                            food.element.classList.add('eaten');
+                            this.addSegment();
+
+                            // Удаляем элемент еды через небольшую задержку для анимации
+                            setTimeout(() => {
+                                food.element.remove();
+                            }, 100);
+                        }
+                    }
+                });
+            }
+
+
+            updatePosition() {
+                const scrollY = window.pageYOffset;
+                const documentHeight = document.documentElement.scrollHeight - window.innerHeight;
+                const scrollProgress = scrollY / documentHeight;
+
+                // Обновляем индекс пути на основе скролла
+                this.currentPathIndex = Math.floor(scrollProgress * (this.path.length - 1));
+
+
+                // получаем точку пути текущей позиции головы
+                const headPoint = this.path[this.currentPathIndex];
+                if (!this.markerTriggered && headPoint) {
+                    // переводим headPoint.y в абсолютные координаты экрана:
+                    const headX = headPoint.x;
+                    const headY = headPoint.y - window.pageYOffset + window.pageYOffset;
+
+                    // вычисляем дистанцию до маркера
+                    const dx = headX - this.markerCoords.x;
+                    const dy = headY - this.markerCoords.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    // порог срабатывания: половина ширины сегмента
+                    const threshold = this.segmentSize / 2;
+
+                    if (distance < threshold) {
+                        this.markerTriggered = true;
+
+                        // а) меняем картинку
+                        const img = document.querySelector('#slide-6 .slide-image');
+                        if (img) img.src = '/image 2251.png';
+
+
+                        if (!this.tailChanged) {
+                            this.tailChanged = true;
+                            const tailEl = this.segments[this.segments.length - 1].element;
+                            tailEl.style.background = 'none';
+                            tailEl.style.boxShadow = 'none';
+                            tailEl.style.border = 'none';
+                            tailEl.innerHTML = '';
+                            const img = document.createElement('img');
+                            img.src = '/image 234.png';
+                            img.alt = 'snake tail';
+                            img.style.width = '100%';
+                            img.style.height = '100%';
+                            img.style.display = 'block';
+                            img.style.pointerEvents = 'none';
+                            tailEl.appendChild(img);
+                        }
+                    }
+                }
+
+
+
+
+
+
+                // Обновляем позиции сегментов
+                for (let i = 0; i < this.segments.length; i++) {
+                    // считаем общее отставание в шагах пути
+                    let lag = 0;
+                    for (let j = 1; j <= i; j++) {
+                        // j==1 — это первый сегмент после головы
+                        lag += (j === 1 ? this.headGap : this.bodyGap);
+                    }
+                    const pathIndex = Math.max(0, this.currentPathIndex - lag);
+                    if (pathIndex < this.path.length) {
+                        const point = this.path[pathIndex];
+                        this.smoothFactor = 0.1; // плавная интерполяция
+
+                        const targetX = point.x;
+                        const targetY = point.y - scrollY;
+
+                        // lerp
+                        this.segments[i].x += (targetX - this.segments[i].x) * this.smoothFactor;
+                        this.segments[i].y += (targetY - this.segments[i].y) * this.smoothFactor;
+
+                        const el = this.segments[i].element;
+                        const cw = el.offsetWidth;
+                        const ch = el.offsetHeight;
+                        const cx = this.segments[i].x;
+                        const cy = this.segments[i].y;
+                        el.style.transform = `translate(${cx - cw / 2}px, ${cy - ch / 2}px)`;
+
+                        // видимость
+                        const visible = (point.y - scrollY) >= -50 && (point.y - scrollY) <= window.innerHeight + 50;
+                        el.style.opacity = visible ? '1' : '0';
+
+                        // коллизия с едой
+                        if (i === 0 && visible) {
+                            this.checkFoodCollision(point.x, point.y);
+                        }
+                    }
+                }
+            }
+
+            animate() {
+                this.updatePosition();
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+
+        // Игра Змейка
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const bestScoreElement = document.getElementById('bestScore');
+
+        const gridSize = 32;
+        const tileCount = canvas.width / gridSize;
+
+        let snake = [
+            { x: 10, y: 10 }
+        ];
+        let food = {};
+        let dx = 0;
+        let dy = 0;
+        let score = 0;
+        let bestScore = localStorage.getItem('snakeBestScore') || 0;
+        let gameRunning = false;
+        let gameLoop;
+
+        bestScoreElement.textContent = bestScore;
+
+        function randomFood() {
+            food = {
+                x: Math.floor(Math.random() * (canvas.width / gridSize)),
+                y: Math.floor(Math.random() * (canvas.height / gridSize))
+            };
+
+            // Проверяем, чтобы еда не появилась на змейке
+            while (snake.some(segment => segment.x === food.x && segment.y === food.y)) {
+                food = {
+                    x: Math.floor(Math.random() * (canvas.width / gridSize)),
+                    y: Math.floor(Math.random() * (canvas.height / gridSize))
+                };
+            }
+        }
+
+        function drawGame() {
+            // Очистка canvas
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Рисование сетки
+            ctx.strokeStyle = 'rgba(0, 255, 0, 0.1)';
+            ctx.lineWidth = 1;
+            for (let x = 0; x <= canvas.width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y <= canvas.height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+
+            // Рисование змейки
+            snake.forEach((segment, index) => {
+                if (index === 0) {
+                    // Голова
+                    ctx.fillStyle = '#00ff88';
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = '#00ff88';
+                } else {
+                    // Тело
+                    ctx.fillStyle = '#00ff00';
+                    ctx.shadowBlur = 5;
+                    ctx.shadowColor = '#00ff00';
+                }
+
+                ctx.fillRect(
+                    segment.x * gridSize + 1,
+                    segment.y * gridSize + 1,
+                    gridSize - 2,
+                    gridSize - 2
+                );
+            });
+
+            ctx.shadowBlur = 0;
+
+            // Рисование еды
+            ctx.fillStyle = '#ff3030';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#ff3030';
+            ctx.fillRect(
+                food.x * gridSize + 2,
+                food.y * gridSize + 2,
+                gridSize - 4,
+                gridSize - 4
+            );
+            ctx.shadowBlur = 0;
+        }
+
+        function moveSnake() {
+            if (!gameRunning) return;
+
+            const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+
+            // Проверка границ
+            if (head.x < 0 || head.x >= canvas.width / gridSize ||
+                head.y < 0 || head.y >= canvas.height / gridSize) {
+                gameOver();
+                return;
+            }
+
+            // Проверка самопересечения
+            if (snake.some(segment => segment.x === head.x && segment.y === head.y)) {
+                gameOver();
+                return;
+            }
+
+            snake.unshift(head);
+
+            // Проверка еды
+            if (head.x === food.x && head.y === food.y) {
+                score += 30;
+                scoreElement.textContent = score;
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestScoreElement.textContent = bestScore;
+                    localStorage.setItem('snakeBestScore', bestScore);
+                }
+
+                randomFood();
+            } else {
+                snake.pop();
+            }
+
+            drawGame();
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            clearInterval(gameLoop);
+
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 32px Courier New';
+            ctx.textAlign = 'center';
+            ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2 - 20);
+
+            ctx.font = '18px Courier New';
+            ctx.fillText('Нажмите "Сброс" для новой игры', canvas.width / 2, canvas.height / 2 + 20);
+            ctx.textAlign = 'left';
+        }
+
+        function startGame() {
+            if (gameRunning) return;
+
+            if (snake.length === 1 && dx === 0 && dy === 0) {
+                // Новая игра
+                dx = 1;
+                dy = 0;
+            }
+
+            gameRunning = true;
+            gameLoop = setInterval(moveSnake, 150);
+        }
+
+        function pauseGame() {
+            if (gameRunning) {
+                gameRunning = false;
+                clearInterval(gameLoop);
+            } else if (snake.length > 1 || dx !== 0 || dy !== 0) {
+                gameRunning = true;
+                gameLoop = setInterval(moveSnake, 150);
+            }
+        }
+
+        function resetGame() {
+            gameRunning = false;
+            clearInterval(gameLoop);
+            snake = [{ x: 10, y: 10 }];
+            dx = 0;
+            dy = 0;
+            score = 0;
+            scoreElement.textContent = score;
+            randomFood();
+            drawGame();
+        }
+
+        // Управление
+        document.addEventListener('keydown', (e) => {
+            if (!gameRunning) return;
+
+            // Блокируем стандартный скролл стрелками и WASD
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+                'w', 'W', 'a', 'A', 's', 'S', 'd', 'D']
+                .includes(e.key)) {
+                e.preventDefault();
+            }
+
+            switch (e.key) {
+                case 'ArrowUp':
+                case 'w':
+                case 'W':
+                case 'Ц':
+                case 'ц':
+                    if (dy === 0) { dx = 0; dy = -1; }
+                    break;
+                case 'ArrowDown':
+                case 's':
+                case 'S':
+                case 'ы':
+                case 'Ы':
+                    if (dy === 0) { dx = 0; dy = 1; }
+                    break;
+                case 'ArrowLeft':
+                case 'a':
+                case 'A':
+                case 'ф':
+                case 'Ф':
+                    if (dx === 0) { dx = -1; dy = 0; }
+                    break;
+                case 'ArrowRight':
+                case 'd':
+                case 'D':
+                case 'В':
+                case 'в':
+                    if (dx === 0) { dx = 1; dy = 0; }
+                    break;
+            }
+        });
+
+        // Навигация по слайдам
+        function scrollToSlide(index) {
+            const slide = document.getElementById(`slide-${index}`);
+            slide.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Отслеживание скролла для навигации
+        window.addEventListener('scroll', () => {
+            const slides = document.querySelectorAll('.slide');
+            let activeIndex = 0;
+
+            slides.forEach((slide, idx) => {
+                const rect = slide.getBoundingClientRect();
+                if (rect.top <= window.innerHeight / 2 && rect.bottom >= window.innerHeight / 2) {
+                    activeIndex = idx;
+                }
+            });
+            const dots = document.querySelectorAll('.nav-dot');
+            dots.forEach((dot, idx) => {
+                dot.classList.toggle('active', idx === activeIndex);
+            });
+
+            const snakeEl = document.getElementById('scrollSnake');
+            if (activeIndex === slides.length - 1) {
+                // полностью прячем контейнер
+                snakeEl.style.opacity = '0';
+                // либо snakeEl.style.display = 'none';
+            } else {
+                snakeEl.style.opacity = '1';
+                // если использовали display:none — вернуть display:''
+            }
+            if (activeIndex === 6) {
+                snakeEl.style.zIndex = '10';
+            } else {
+                snakeEl.style.zIndex = '1';
+            }
+        });
+
+
+        // Обновление пути змейки при изменении размера окна
+        window.addEventListener('resize', () => {
+            if (window.scrollSnake) {
+                window.scrollSnake.generatePath();
+                // Пересоздаём еду при изменении размера окна
+                window.scrollSnake.foodItems.forEach(food => {
+                    if (!food.eaten) {
+                        food.element.remove();
+                    }
+                });
+                window.scrollSnake.foodItems = [];
+                window.scrollSnake.createFoodItems();
+            }
+        });
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', () => {
+            randomFood();
+            drawGame();
+
+            // Создаём анимированную змейку для скролла
+            window.scrollSnake = new ScrollSnake();
+        });
+    </script>
+</body>
+
+</html>
